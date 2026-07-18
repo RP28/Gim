@@ -85,8 +85,7 @@ class PlotHost(QWidget):
     def set_html(self, html: str) -> None:
         self._html = html
         if self._is_webengine and self._temporary_directory is not None:
-            # QWebEngineView.setHtml() is constrained by data-URL size. Plotly's
-            # offline bundle is larger, so load an ordinary local HTML file.
+            # Large Plotly documents are more reliable when loaded from a local file.
             path = Path(self._temporary_directory.name) / "plot.html"
             path.write_text(html, encoding="utf-8")
             self._web.load(QUrl.fromLocalFile(str(path)))

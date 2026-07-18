@@ -97,7 +97,7 @@ class Workspace:
         parent = self.require_node(parent_id)
         if not code.strip():
             raise ValueError("Transformation code cannot be empty")
-        # Validate before adding the history node.
+        # Evaluate first so failed transformations do not modify history.
         result = get_operation("dsl").function((self.materialize(parent_id),), {"code": code})
         node = HistoryNode.create(
             kind=NodeKind.TRANSFORM,
@@ -188,7 +188,7 @@ class Workspace:
         while len(self._cache) > self.cache_size:
             key, evicted = self._cache.popitem(last=False)
             if key == self.selected_node_id and self._cache:
-                # Keep the active frame hot when possible, then evict the next oldest.
+                # Prefer retaining the selected frame when trimming the cache.
                 self._cache[key] = evicted
                 self._cache.popitem(last=False)
 

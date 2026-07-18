@@ -4,9 +4,16 @@ The same compact, replayable language is available below plots, before statistic
 
 ## Column tokens
 
+Simple column name:
+
 ```text
-@price                 # simple column name
-@{Order Date}          # spaces or symbols
+@price
+```
+
+Column name with spaces or symbols:
+
+```text
+@{Order Date}
 ```
 
 ## Filter and limit rows
@@ -44,4 +51,4 @@ lower(x), upper(x), contains(x, text, case=False)
 isnull(x), notnull(x), year(x), month(x), day(x), clip(x, low, high)
 ```
 
-Combine steps using new lines or `|`. Lines beginning with `#` are ignored. Arbitrary imports, attribute access, and unrestricted Python calls are intentionally blocked so saved workspaces remain deterministic and replayable.
+Combine steps using new lines or `|`. Lines beginning with `#` are ignored. Arbitrary imports, attribute access, and unrestricted Python calls are blocked so saved workspaces remain deterministic and replayable.
