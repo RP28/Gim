@@ -212,7 +212,9 @@ class MainWindow(QMainWindow):
         try:
             for statement in statements:
                 if self._is_duplicate_statement(statement):
-                    node = self.workspace.duplicate(current_id, self._duplicate_alias(statement))
+                    source_ref, alias = self._duplicate_parts(statement)
+                    parent_id = self._resolve_duplicate_source(source_ref, current_id)
+                    node = self.workspace.duplicate(parent_id, alias)
                     action = "Duplicated branch"
                 else:
                     node = self.workspace.apply_transform(current_id, statement)
@@ -239,12 +241,37 @@ class MainWindow(QMainWindow):
     def _is_duplicate_statement(statement: str) -> bool:
         return statement.lower().split(maxsplit=1)[0] == "duplicate"
 
-    def _duplicate_alias(self, statement: str) -> str | None:
-        match = re.fullmatch(r"duplicate(?:\s+(?:as\s+)?(.+))?", statement, flags=re.I)
+    def _duplicate_parts(self, statement: str) -> tuple[str | None, str | None]:
+        match = re.fullmatch(r"duplicate(?:\s+from\s+(.+?))?(?:\s+as\s+(.+))?", statement, flags=re.I)
         if not match:
-            raise ValueError("duplicate syntax: duplicate [as New branch name]")
-        alias = (match.group(1) or "").strip()
-        return alias or None
+            raise ValueError("duplicate syntax: duplicate [from branch-or-node] [as New branch name]")
+        source_ref = self._unquote(match.group(1) or "")
+        alias = self._unquote(match.group(2) or "")
+        return source_ref or None, alias or None
+
+    @staticmethod
+    def _unquote(value: str) -> str:
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            return value[1:-1].strip()
+        return value
+
+    def _resolve_duplicate_source(self, source_ref: str | None, fallback_id: str) -> str:
+        if not source_ref:
+            return fallback_id
+        lookup = source_ref.casefold()
+        id_matches = [node_id for node_id in self.workspace.nodes if node_id == source_ref or node_id.startswith(source_ref)]
+        if len(id_matches) == 1:
+            return id_matches[0]
+        if len(id_matches) > 1:
+            raise ValueError(f"Ambiguous node id prefix: {source_ref}")
+        latest_nodes = self.workspace.latest_nodes_by_branch().values()
+        alias_matches = [node.id for node in latest_nodes if node.alias.casefold() == lookup]
+        if len(alias_matches) == 1:
+            return alias_matches[0]
+        if len(alias_matches) > 1:
+            raise ValueError(f"Ambiguous branch alias: {source_ref}")
+        raise ValueError(f"Unknown branch or node: {source_ref}")
 
     @staticmethod
     def _command_status(statement: str) -> str:

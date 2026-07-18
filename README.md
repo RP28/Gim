@@ -79,6 +79,8 @@ Use `duplicate` to create a separate branch for plotting, statistical tests, or 
 
 ```text
 duplicate as Stats branch
+duplicate from Orders as Stats branch
+duplicate from "Clean orders" as Reporting branch
 ```
 
 ## Plot families

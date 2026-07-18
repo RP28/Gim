@@ -112,6 +112,26 @@ def test_command_console_runs_transform_and_duplicate(qapp) -> None:
     window.close()
 
 
+def test_command_console_duplicates_from_named_branch(qapp) -> None:
+    from gim.core.workspace import Workspace
+    from gim.ui.main_window import MainWindow
+
+    workspace = Workspace()
+    first = workspace.add_source(pd.DataFrame({"x": [1, 2]}), "Orders")
+    second = workspace.add_source(pd.DataFrame({"y": [3, 4]}), "Other")
+    window = MainWindow(workspace)
+    window.select_node(second.id)
+
+    window.run_console_command("duplicate from Orders as Stats branch")
+    duplicated = workspace.require_node(workspace.selected_node_id)
+
+    assert duplicated.alias == "Stats branch"
+    assert duplicated.parents == (first.id,)
+    assert list(workspace.materialize(duplicated.id).columns) == ["x"]
+    window.mark_dirty(False)
+    window.close()
+
+
 def test_command_console_runs_multiline_batch(qapp) -> None:
     from gim.core.workspace import Workspace
     from gim.ui.main_window import MainWindow
@@ -142,6 +162,18 @@ def test_command_console_cheatsheet_button_is_available(qapp) -> None:
 
     button_texts = [button.text() for button in console.findChildren(QPushButton)]
     assert "Show language cheatsheet" in button_texts
+
+
+def test_language_cheatsheet_renders_markdown(qapp) -> None:
+    from PySide6.QtWidgets import QTextBrowser
+
+    from gim.ui.widgets import language_cheatsheet_view
+
+    view = language_cheatsheet_view()
+
+    assert isinstance(view, QTextBrowser)
+    assert "```text" not in view.toPlainText()
+    assert "duplicate from Orders" in view.toPlainText()
 
 
 def test_plot_panel_bins_slider_and_spin_stay_synchronised(qapp) -> None:

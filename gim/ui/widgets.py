@@ -42,14 +42,19 @@ class DslEditor(QPlainTextEdit):
         self.setFocus()
 
 
+def language_cheatsheet_view() -> QTextBrowser:
+    text = QTextBrowser()
+    text.setOpenExternalLinks(False)
+    text.setMarkdown(CHEATSHEET)
+    return text
+
+
 def show_language_cheatsheet(parent: QWidget | None = None) -> None:
     dialog = QDialog(parent)
-    dialog.setWindowTitle("Local data language")
+    dialog.setWindowTitle("Command language")
     dialog.resize(720, 620)
     layout = QVBoxLayout(dialog)
-    text = QPlainTextEdit(CHEATSHEET)
-    text.setReadOnly(True)
-    layout.addWidget(text)
+    layout.addWidget(language_cheatsheet_view())
     buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
     buttons.rejected.connect(dialog.reject)
     buttons.clicked.connect(dialog.accept)

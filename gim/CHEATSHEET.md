@@ -50,6 +50,8 @@ dedupe @customer, @{Order Date}
 ```text
 duplicate
 duplicate as Stats branch
+duplicate from Orders as Stats branch
+duplicate from "Clean orders" as Reporting branch
 ```
 
 ## Supported functions
