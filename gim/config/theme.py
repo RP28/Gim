@@ -47,6 +47,12 @@ def build_stylesheet() -> str:
         padding: 7px 11px;
     }}
     QPushButton:hover, QToolButton:hover {{ border-color: {p.accent}; }}
+    QPushButton:checked {{
+        background: {p.accent};
+        border-color: {p.accent};
+        color: white;
+        font-weight: 600;
+    }}
     QPushButton:pressed, QToolButton:pressed {{ background: #2A313B; }}
     QPushButton#accentButton {{
         background: {p.accent};

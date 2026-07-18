@@ -44,6 +44,7 @@ def test_main_window_context_updates(qapp) -> None:
     window.select_node(node.id)
     assert window.plot_panel.node_id == node.id
     assert window.plot_panel.x_column.findText("x") >= 0
+    assert window.profile_panel.table.rowCount() == 2
     assert "data" in window.node_summary.text()
     window.mark_dirty(False)
     window.close()

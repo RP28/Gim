@@ -61,7 +61,7 @@ Use `start_event_loop=False` when embedding GIM or writing UI tests.
 3. Apply **Transform** to create a replayable node above the selected dataset.
 4. Use **Duplicate branch** to create an independent branch from the selected node.
 5. Shift-click two nodes to merge datasets with a left, right, or inner join.
-6. Select any node to bind plots and tests to that exact data state.
+6. Select any node to bind plots, tests, and the Profile summary to that exact data state.
 7. Use plot-local code to adjust the current chart without changing the workspace history.
 8. Save plots, correlations, and statistical tests as artifacts attached to the selected node.
 9. Save the workspace. Reopening loads the original sources and replays the recorded operations.
@@ -104,6 +104,7 @@ gim/
     operations.py         decorator-based replay operation registry
     persistence.py        atomic .gim ZIP save/load
     plotting.py           reusable plot-builder class hierarchy
+    profile.py            compact dataframe profile summaries
     stats.py              statistical test engine
     workspace.py          graph, branching, cache, and materialisation
   ui/
@@ -111,6 +112,7 @@ gim/
     history_view.py       interactive history graph rendering
     main_window.py        workspace orchestration
     plot_panel.py         dynamic plot controls and local operations
+    profile_panel.py      compact dataframe profile panel
     welcome.py            create/resume screen
     widgets.py            reusable token editor and Plotly host
 ```

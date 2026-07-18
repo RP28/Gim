@@ -42,6 +42,7 @@ from .dialogs import (
 )
 from .history_view import HistoryGraphView
 from .plot_panel import PlotPanel
+from .profile_panel import ProfilePanel
 
 
 class MainWindow(QMainWindow):
@@ -90,6 +91,8 @@ class MainWindow(QMainWindow):
         history_layout.setContentsMargins(6, 6, 6, 6)
         self.history = HistoryGraphView()
         history_layout.addWidget(self.history, 1)
+        self.profile_panel = ProfilePanel()
+        history_layout.addWidget(self.profile_panel)
         tabs.addTab(history_tab, "History")
 
         saved_tab = QWidget()
@@ -139,6 +142,8 @@ class MainWindow(QMainWindow):
             self.node_summary.setText("No dataset selected")
             self.transform_button.setEnabled(False)
             self.duplicate_button.setEnabled(False)
+            self.profile_panel.clear_profile()
+
     def prompt_add_csv(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(self, "Import CSV files", "", "CSV files (*.csv *.txt);;All files (*)")
         for path in paths:
@@ -195,6 +200,7 @@ class MainWindow(QMainWindow):
         self.transform_button.setEnabled(True)
         self.duplicate_button.setEnabled(True)
         self.plot_panel.set_context(self.workspace, node_id)
+        self.profile_panel.set_dataframe(node.alias, frame)
         if sync_history:
             self.history.select_node(node_id, emit=False)
 
