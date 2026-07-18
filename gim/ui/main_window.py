@@ -203,7 +203,6 @@ class MainWindow(QMainWindow):
         if not node_id:
             self.command_console.append_output("No dataset selected.")
             return
-        self.command_console.append_output(f"> {command}")
         statements = self._command_statements(command)
         if not statements:
             return

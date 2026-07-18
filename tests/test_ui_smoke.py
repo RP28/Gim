@@ -112,6 +112,26 @@ def test_command_console_runs_transform_and_duplicate(qapp) -> None:
     window.close()
 
 
+def test_command_console_does_not_echo_typed_command_twice(qapp) -> None:
+    from gim.core.workspace import Workspace
+    from gim.ui.main_window import MainWindow
+
+    workspace = Workspace()
+    source = workspace.add_source(pd.DataFrame({"x": [1, 2]}), "data")
+    window = MainWindow(workspace)
+    window.select_node(source.id)
+    window.command_console.terminal.insertPlainText("duplicate as d1\n")
+
+    window.run_console_command("duplicate as d1")
+    transcript = window.command_console.terminal.toPlainText()
+
+    assert transcript.count("> duplicate as d1") == 1
+    assert "\n>\nDuplicated branch" not in transcript
+    assert "Duplicated branch: d1" in transcript
+    window.mark_dirty(False)
+    window.close()
+
+
 def test_command_console_duplicates_from_named_branch(qapp) -> None:
     from gim.core.workspace import Workspace
     from gim.ui.main_window import MainWindow
