@@ -102,12 +102,12 @@ def test_command_console_runs_transform_and_duplicate(qapp) -> None:
     window.run_console_command("drop @y")
     dropped = workspace.require_node(workspace.selected_node_id)
     assert list(workspace.materialize(dropped.id).columns) == ["x"]
-    assert "Dropped columns" in window.command_console.output.toPlainText()
+    assert "Dropped columns" in window.command_console.terminal.toPlainText()
 
     window.run_console_command("duplicate as Stats branch")
     duplicated = workspace.require_node(workspace.selected_node_id)
     assert duplicated.alias == "Stats branch"
-    assert "Duplicated branch" in window.command_console.output.toPlainText()
+    assert "Duplicated branch" in window.command_console.terminal.toPlainText()
     window.mark_dirty(False)
     window.close()
 
@@ -146,8 +146,8 @@ def test_command_console_runs_multiline_batch(qapp) -> None:
 
     assert list(frame.columns) == ["x"]
     assert list(frame["x"]) == [11, 12]
-    assert "Dropped columns" in window.command_console.output.toPlainText()
-    assert "Updated column" in window.command_console.output.toPlainText()
+    assert "Dropped columns" in window.command_console.terminal.toPlainText()
+    assert "Updated column" in window.command_console.terminal.toPlainText()
     assert len(workspace.nodes) == 3
     window.mark_dirty(False)
     window.close()
@@ -162,6 +162,22 @@ def test_command_console_cheatsheet_button_is_available(qapp) -> None:
 
     button_texts = [button.text() for button in console.findChildren(QPushButton)]
     assert "Show language cheatsheet" in button_texts
+
+
+def test_command_console_is_single_terminal_surface(qapp) -> None:
+    from gim.ui.command_console import CommandConsole
+
+    console = CommandConsole()
+    console.set_context("data", ["first column"])
+    console.column_tokens.item(0).setSelected(True)
+    console.column_tokens.tokenRequested.emit(console.column_tokens.token_for("first column"))
+    console.append_output("Dropped columns: data - 2 rows x 1 cols")
+
+    text = console.terminal.toPlainText()
+    assert "@{first column}" in text
+    assert "Dropped columns" in text
+    assert not hasattr(console, "output")
+    assert not hasattr(console, "input")
 
 
 def test_language_cheatsheet_renders_markdown(qapp) -> None:
