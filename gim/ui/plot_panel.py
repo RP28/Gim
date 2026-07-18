@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from typing import Any
-
 import pandas as pd
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QFormLayout,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -16,16 +13,14 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSlider,
     QSpinBox,
-    QSplitter,
     QVBoxLayout,
     QWidget,
 )
 
-from gim.core.dsl import LocalTransformEngine
 from gim.core.plotting import PlotRequest, build_figure, modes_for, plot_families
 from gim.core.workspace import Workspace
 
-from .widgets import ColumnTokenList, DslEditor, PlotHost, show_language_cheatsheet
+from .widgets import PlotHost
 
 
 def _fit_combo(combo: QComboBox, items: list[str], *, minimum_width: int = 140) -> None:
@@ -37,7 +32,7 @@ def _fit_combo(combo: QComboBox, items: list[str], *, minimum_width: int = 140) 
 
 
 class PlotPanel(QWidget):
-    savePlotRequested = Signal(object, str, str)  # PlotRequest, local code, suggested title
+    savePlotRequested = Signal(object, str, str)  # PlotRequest, saved local code, suggested title
     statsRequested = Signal()
     correlationRequested = Signal()
 
@@ -46,7 +41,6 @@ class PlotPanel(QWidget):
         self.workspace: Workspace | None = None
         self.node_id: str | None = None
         self.last_request: PlotRequest | None = None
-        self.last_local_code = ""
         self._building = False
         self._build_ui()
 
@@ -67,8 +61,10 @@ class PlotPanel(QWidget):
         header.addStretch()
         self.stats_button = QPushButton("Statistical tests")
         self.corr_button = QPushButton("Correlation map")
+        self.save_button = QPushButton("Save plot")
         header.addWidget(self.stats_button)
         header.addWidget(self.corr_button)
+        header.addWidget(self.save_button)
         root.addLayout(header)
 
         controls_card = QFrame()
@@ -123,40 +119,9 @@ class PlotPanel(QWidget):
         controls.addLayout(self.dynamic_row)
         root.addWidget(controls_card)
 
-        splitter = QSplitter(Qt.Orientation.Vertical)
         self.plot_host = PlotHost()
         self.plot_host.setMinimumHeight(390)
-        splitter.addWidget(self.plot_host)
-
-        local_card = QFrame()
-        local_card.setObjectName("Card")
-        local_layout = QVBoxLayout(local_card)
-        local_header = QHBoxLayout()
-        local_title = QLabel("Plot-local data steps")
-        local_title.setObjectName("SectionTitle")
-        local_header.addWidget(local_title)
-        local_header.addStretch()
-        cheat = QPushButton("Show language cheatsheet")
-        cheat.clicked.connect(lambda: show_language_cheatsheet(self))
-        local_header.addWidget(cheat)
-        self.save_button = QPushButton("Save plot")
-        local_header.addWidget(self.save_button)
-        local_layout.addLayout(local_header)
-        local_body = QHBoxLayout()
-        self.column_tokens = ColumnTokenList()
-        self.local_editor = DslEditor()
-        self.local_editor.setPlaceholderText(
-            "where @region == \"NSW\"\n"
-            "derive margin = @revenue - @cost\n"
-            "drop @temporary"
-        )
-        self.column_tokens.tokenRequested.connect(self.local_editor.insert_token)
-        local_body.addWidget(self.column_tokens, 1)
-        local_body.addWidget(self.local_editor, 4)
-        local_layout.addLayout(local_body)
-        splitter.addWidget(local_card)
-        splitter.setSizes([560, 230])
-        root.addWidget(splitter, 1)
+        root.addWidget(self.plot_host, 1)
 
         self.family.currentTextChanged.connect(self._family_changed)
         self.mode.currentTextChanged.connect(self._dynamic_controls)
@@ -195,7 +160,6 @@ class PlotPanel(QWidget):
         self._set_combo_columns(self.x_column, columns, allow_empty=True, preferred=current["x"])
         self._set_combo_columns(self.y_column, columns, allow_empty=True, preferred=current["y"])
         self._set_combo_columns(self.hue_column, columns, allow_empty=True, preferred=current["hue"])
-        self.column_tokens.set_columns(columns)
 
     @staticmethod
     def _set_combo_columns(combo: QComboBox, columns: list[str], *, allow_empty: bool, preferred: str) -> None:
@@ -268,9 +232,7 @@ class PlotPanel(QWidget):
     def prepared_dataframe(self) -> pd.DataFrame:
         if not self.workspace or not self.node_id:
             raise ValueError("Select a history node first")
-        frame = self.workspace.materialize(self.node_id)
-        code = self.local_editor.toPlainText().strip()
-        return LocalTransformEngine().apply(frame, code) if code else frame
+        return self.workspace.materialize(self.node_id)
 
     def render(self) -> None:
         if self._building:
@@ -287,7 +249,6 @@ class PlotPanel(QWidget):
             )
             self.plot_host.set_html(html)
             self.last_request = request
-            self.last_local_code = self.local_editor.toPlainText()
         except Exception as exc:
             QMessageBox.warning(self, "Could not build plot", str(exc))
         finally:
@@ -304,7 +265,6 @@ class PlotPanel(QWidget):
             self.bins_spin.setValue(request.bins)
         self.flip_button.setProperty("activeFlip", request.flip)
         self.flip_button.setText("⇄ Flipped" if request.flip else "⇄ Flip")
-        self.local_editor.setPlainText(local_code)
         self.render()
 
     def _save(self) -> None:
@@ -316,4 +276,4 @@ class PlotPanel(QWidget):
         if self.last_request is None:
             return
         suggested = f"{self.last_request.family} · {self.last_request.mode}"
-        self.savePlotRequested.emit(self.last_request, self.local_editor.toPlainText(), suggested)
+        self.savePlotRequested.emit(self.last_request, "", suggested)

@@ -1,6 +1,6 @@
-# GIM local data language
+# GIM command language
 
-The same compact, replayable language is available below plots, before statistical tests, and in the global **Transform** dialog. Double-click a column in the token list to insert its safe name.
+Use the command console to create replayable history nodes from the selected dataset. Press Enter to run the current command. Press Shift+Enter to add more lines before running. Each non-comment line runs as one operation and prints a result. Double-click a column in the token list to insert its safe name.
 
 ## Column tokens
 
@@ -43,6 +43,13 @@ cast @{Order Date} as datetime
 cast @PriceUpdatedDate as date
 fill @income = median
 dedupe @customer, @{Order Date}
+```
+
+## Branching
+
+```text
+duplicate
+duplicate as Stats branch
 ```
 
 ## Supported functions

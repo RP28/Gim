@@ -5,29 +5,21 @@ from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
-    QFileDialog,
     QFormLayout,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QMessageBox,
-    QPushButton,
     QSizePolicy,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from gim.core.stats import TEST_NAMES
-
-from .widgets import ColumnTokenList, DslEditor, show_language_cheatsheet
 
 
 def _configure_form_layout(layout: QFormLayout) -> None:
@@ -99,68 +91,6 @@ class CsvOptionsDialog(QDialog):
 
     def values(self) -> tuple[str, str, str | None]:
         return self.alias_edit.text().strip(), self.encoding.currentText(), self.delimiter.currentData()
-
-
-class TransformDialog(QDialog):
-    def __init__(self, columns: list[str], parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Transform dataset")
-        self.resize(820, 520)
-        root = QVBoxLayout(self)
-        body = QHBoxLayout()
-        self.columns = ColumnTokenList()
-        self.columns.set_columns(columns)
-        self.editor = DslEditor()
-        self.editor.setPlaceholderText(
-            "Examples:\n"
-            "drop @temporary\n"
-            "where @age >= 18\n"
-            "derive margin = @revenue - @cost\n"
-            "dedupe @customer, @{Order Date}"
-        )
-        self.columns.tokenRequested.connect(self.editor.insert_token)
-        body.addWidget(self.columns, 1)
-        body.addWidget(self.editor, 4)
-        root.addLayout(body)
-        cheat = QPushButton("Show language cheatsheet")
-        cheat.clicked.connect(lambda: show_language_cheatsheet(self))
-        root.addWidget(cheat, alignment=Qt.AlignmentFlag.AlignLeft)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Apply | QDialogButtonBox.StandardButton.Cancel)
-        apply_button = buttons.button(QDialogButtonBox.StandardButton.Apply)
-        apply_button.setObjectName("accentButton")
-        apply_button.clicked.connect(self._validate)
-        buttons.rejected.connect(self.reject)
-        root.addWidget(buttons)
-
-    def _validate(self) -> None:
-        if not self.editor.toPlainText().strip():
-            QMessageBox.warning(self, "No transformation", "Enter at least one transformation statement.")
-            return
-        self.accept()
-
-    @property
-    def code(self) -> str:
-        return self.editor.toPlainText()
-
-
-class DuplicateDialog(QDialog):
-    def __init__(self, default_alias: str, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Duplicate branch")
-        self.setMinimumWidth(460)
-        layout = QFormLayout(self)
-        _configure_form_layout(layout)
-        self.alias_edit = QLineEdit(default_alias)
-        _expand_field(self.alias_edit)
-        layout.addRow("New branch alias", self.alias_edit)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addRow(buttons)
-
-    @property
-    def alias(self) -> str:
-        return self.alias_edit.text().strip()
 
 
 class MergeDialog(QDialog):
@@ -274,19 +204,6 @@ class StatsDialog(QDialog):
         form.addRow("Group / second column", self.column_b)
         form.addRow("Significance α", self.alpha)
         root.addLayout(form)
-        root.addWidget(QLabel("Optional local operations before testing"))
-        body = QHBoxLayout()
-        self.column_tokens = ColumnTokenList()
-        self.column_tokens.set_columns(columns)
-        self.editor = DslEditor()
-        self.editor.setPlaceholderText("where @region == \"NSW\"\ndrop @temporary")
-        self.column_tokens.tokenRequested.connect(self.editor.insert_token)
-        body.addWidget(self.column_tokens, 1)
-        body.addWidget(self.editor, 3)
-        root.addLayout(body)
-        cheat = QPushButton("Show language cheatsheet")
-        cheat.clicked.connect(lambda: show_language_cheatsheet(self))
-        root.addWidget(cheat, alignment=Qt.AlignmentFlag.AlignLeft)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Ok).setObjectName("accentButton")
         buttons.accepted.connect(self.accept)
@@ -299,7 +216,6 @@ class StatsDialog(QDialog):
             "column_a": self.column_a.currentText(),
             "column_b": self.column_b.currentText(),
             "alpha": self.alpha.value(),
-            "local_code": self.editor.toPlainText(),
         }
 
 

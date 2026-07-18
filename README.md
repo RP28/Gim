@@ -58,13 +58,28 @@ Use `start_event_loop=False` when embedding GIM or writing UI tests.
 
 1. Create a workspace or resume an existing `.gim` file.
 2. Import one or more CSV files. Each source receives an alias and starts its own history branch.
-3. Apply **Transform** to create a replayable node above the selected dataset.
-4. Use **Duplicate branch** to create an independent branch from the selected node.
+3. Select a history node and run commands in the console to create replayable transform or duplicate nodes.
+4. Press Enter to execute the console command. Press Shift+Enter to add more lines before execution.
 5. Shift-click two nodes to merge datasets with a left, right, or inner join.
 6. Select any node to bind plots, tests, and the Profile summary to that exact data state.
-7. Use plot-local code to adjust the current chart without changing the workspace history.
-8. Save plots, correlations, and statistical tests as artifacts attached to the selected node.
-9. Save the workspace. Reopening loads the original sources and replays the recorded operations.
+7. Save plots, correlations, and statistical tests as artifacts attached to the selected node.
+8. Save the workspace. Reopening loads the original sources and replays the recorded operations.
+
+## Command console
+
+The command console is the single place for dataframe changes. Each non-comment line runs as one operation against the currently selected history node and prints a result in the console output. Standard DSL statements create transform nodes:
+
+```text
+drop @temporary
+update @PriceUpdatedDate = date(@PriceUpdatedDate)
+cast @Price as float
+```
+
+Use `duplicate` to create a separate branch for plotting, statistical tests, or alternate cleanup paths:
+
+```text
+duplicate as Stats branch
+```
 
 ## Plot families
 
@@ -108,10 +123,11 @@ gim/
     stats.py              statistical test engine
     workspace.py          graph, branching, cache, and materialisation
   ui/
-    dialogs.py            import, transform, merge, stats, correlation dialogs
+    command_console.py    single command surface for workspace operations
+    dialogs.py            import, merge, stats, correlation dialogs
     history_view.py       interactive history graph rendering
     main_window.py        workspace orchestration
-    plot_panel.py         dynamic plot controls and local operations
+    plot_panel.py         dynamic plot controls
     profile_panel.py      compact dataframe profile panel
     welcome.py            create/resume screen
     widgets.py            reusable token editor and Plotly host

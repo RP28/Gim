@@ -35,6 +35,8 @@ def test_history_view_requests_merge_on_shift_selection(qapp) -> None:
 
 
 def test_main_window_context_updates(qapp) -> None:
+    from PySide6.QtWidgets import QPushButton
+
     from gim.core.workspace import Workspace
     from gim.ui.main_window import MainWindow
 
@@ -45,7 +47,11 @@ def test_main_window_context_updates(qapp) -> None:
     assert window.plot_panel.node_id == node.id
     assert window.plot_panel.x_column.findText("x") >= 0
     assert window.profile_panel.table.rowCount() == 2
+    assert window.command_console.column_tokens.count() == 2
     assert "data" in window.node_summary.text()
+    button_texts = [button.text() for button in window.findChildren(QPushButton)]
+    assert "Transform" not in button_texts
+    assert "Duplicate branch" not in button_texts
     window.mark_dirty(False)
     window.close()
 
@@ -84,33 +90,58 @@ def test_merge_dialog_keeps_long_fields_readable(qapp) -> None:
     dialog.close()
 
 
-def test_transform_dialog_apply_button_accepts(qapp) -> None:
-    from PySide6.QtWidgets import QDialogButtonBox
+def test_command_console_runs_transform_and_duplicate(qapp) -> None:
+    from gim.core.workspace import Workspace
+    from gim.ui.main_window import MainWindow
 
-    from gim.ui.dialogs import TransformDialog
+    workspace = Workspace()
+    source = workspace.add_source(pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "data")
+    window = MainWindow(workspace)
+    window.select_node(source.id)
 
-    dialog = TransformDialog(["product_id"])
-    dialog.editor.setPlainText("drop @product_id")
+    window.run_console_command("drop @y")
+    dropped = workspace.require_node(workspace.selected_node_id)
+    assert list(workspace.materialize(dropped.id).columns) == ["x"]
+    assert "Dropped columns" in window.command_console.output.toPlainText()
 
-    buttons = dialog.findChild(QDialogButtonBox)
-    assert buttons is not None
-    buttons.button(QDialogButtonBox.StandardButton.Apply).click()
+    window.run_console_command("duplicate as Stats branch")
+    duplicated = workspace.require_node(workspace.selected_node_id)
+    assert duplicated.alias == "Stats branch"
+    assert "Duplicated branch" in window.command_console.output.toPlainText()
+    window.mark_dirty(False)
+    window.close()
 
-    assert dialog.result() == TransformDialog.DialogCode.Accepted
+
+def test_command_console_runs_multiline_batch(qapp) -> None:
+    from gim.core.workspace import Workspace
+    from gim.ui.main_window import MainWindow
+
+    workspace = Workspace()
+    source = workspace.add_source(pd.DataFrame({"x": [1, 2], "y": [3, 4]}), "data")
+    window = MainWindow(workspace)
+    window.select_node(source.id)
+
+    window.run_console_command("drop @y\nupdate @x = @x + 10")
+    frame = workspace.materialize(workspace.selected_node_id)
+
+    assert list(frame.columns) == ["x"]
+    assert list(frame["x"]) == [11, 12]
+    assert "Dropped columns" in window.command_console.output.toPlainText()
+    assert "Updated column" in window.command_console.output.toPlainText()
+    assert len(workspace.nodes) == 3
+    window.mark_dirty(False)
+    window.close()
 
 
-def test_local_operation_cheatsheet_buttons_are_available(qapp) -> None:
+def test_command_console_cheatsheet_button_is_available(qapp) -> None:
     from PySide6.QtWidgets import QPushButton
 
-    from gim.ui.dialogs import StatsDialog, TransformDialog
-    from gim.ui.plot_panel import PlotPanel
+    from gim.ui.command_console import CommandConsole
 
-    dialogs = [TransformDialog(["x"]), StatsDialog(["x", "y"])]
-    panel = PlotPanel()
+    console = CommandConsole()
 
-    for widget in [*dialogs, panel]:
-        button_texts = [button.text() for button in widget.findChildren(QPushButton)]
-        assert "Show language cheatsheet" in button_texts
+    button_texts = [button.text() for button in console.findChildren(QPushButton)]
+    assert "Show language cheatsheet" in button_texts
 
 
 def test_plot_panel_bins_slider_and_spin_stay_synchronised(qapp) -> None:

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
-from typing import Any
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
@@ -22,7 +22,6 @@ from PySide6.QtWidgets import (
 )
 
 from gim.config.theme import WINDOW_HEIGHT, WINDOW_WIDTH
-from gim.core.dsl import LocalTransformEngine
 from gim.core.importers import CsvReadError, ImportedFrame, read_csv_robust
 from gim.core.models import ArtifactKind, SavedArtifact
 from gim.core.persistence import save_workspace
@@ -30,15 +29,14 @@ from gim.core.plotting import PlotRequest, build_correlation_figure
 from gim.core.stats import run_statistical_test
 from gim.core.workspace import Workspace
 
+from .command_console import CommandConsole
 from .dialogs import (
     AliasDialog,
     ArtifactNameDialog,
     CorrelationDialog,
     CsvOptionsDialog,
-    DuplicateDialog,
     MergeDialog,
     StatsDialog,
-    TransformDialog,
 )
 from .history_view import HistoryGraphView
 from .plot_panel import PlotPanel
@@ -68,14 +66,11 @@ class MainWindow(QMainWindow):
         toolbar_layout = QHBoxLayout(toolbar)
         toolbar_layout.setContentsMargins(10, 8, 10, 8)
         self.add_csv_button = QPushButton("＋ Add CSV")
-        self.transform_button = QPushButton("Transform")
-        self.duplicate_button = QPushButton("Duplicate branch")
         self.save_button = QPushButton("Save .gim")
         self.save_button.setObjectName("accentButton")
         self.node_summary = QLabel("No dataset selected")
         self.node_summary.setObjectName("Muted")
-        for widget in [self.add_csv_button, self.transform_button, self.duplicate_button]:
-            toolbar_layout.addWidget(widget)
+        toolbar_layout.addWidget(self.add_csv_button)
         toolbar_layout.addStretch()
         toolbar_layout.addWidget(self.node_summary)
         toolbar_layout.addWidget(self.save_button)
@@ -108,17 +103,18 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.plot_panel)
         splitter.setSizes([470, 960])
         root.addWidget(splitter, 1)
+        self.command_console = CommandConsole()
+        root.addWidget(self.command_console)
         self.setCentralWidget(central)
 
         self.add_csv_button.clicked.connect(self.prompt_add_csv)
-        self.transform_button.clicked.connect(self.transform_current)
-        self.duplicate_button.clicked.connect(self.duplicate_current)
         self.save_button.clicked.connect(self.save_workspace_dialog)
         self.history.nodeSelected.connect(self.select_history_node)
         self.history.mergePairSelected.connect(self.open_merge_dialog)
         self.plot_panel.savePlotRequested.connect(self.save_plot)
         self.plot_panel.statsRequested.connect(self.run_stats)
         self.plot_panel.correlationRequested.connect(self.run_correlation)
+        self.command_console.commandSubmitted.connect(self.run_console_command)
         self.saved_list.itemDoubleClicked.connect(self.open_artifact_item)
 
     def mark_dirty(self, dirty: bool = True) -> None:
@@ -140,9 +136,8 @@ class MainWindow(QMainWindow):
             self.select_node(selected)
         else:
             self.node_summary.setText("No dataset selected")
-            self.transform_button.setEnabled(False)
-            self.duplicate_button.setEnabled(False)
             self.profile_panel.clear_profile()
+            self.command_console.clear_context()
 
     def prompt_add_csv(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(self, "Import CSV files", "", "CSV files (*.csv *.txt);;All files (*)")
@@ -197,40 +192,78 @@ class MainWindow(QMainWindow):
         node = self.workspace.nodes[node_id]
         frame = self.workspace.materialize(node_id)
         self.node_summary.setText(f"{node.alias} · {len(frame):,} × {len(frame.columns):,}")
-        self.transform_button.setEnabled(True)
-        self.duplicate_button.setEnabled(True)
         self.plot_panel.set_context(self.workspace, node_id)
         self.profile_panel.set_dataframe(node.alias, frame)
+        self.command_console.set_context(f"{node.alias} - {len(frame):,} rows x {len(frame.columns):,} cols", [str(column) for column in frame.columns])
         if sync_history:
             self.history.select_node(node_id, emit=False)
 
-    def transform_current(self) -> None:
+    def run_console_command(self, command: str) -> None:
         node_id = self.workspace.selected_node_id
         if not node_id:
+            self.command_console.append_output("No dataset selected.")
             return
-        frame = self.workspace.materialize(node_id)
-        dialog = TransformDialog([str(column) for column in frame.columns], self)
-        if dialog.exec() != TransformDialog.DialogCode.Accepted:
+        self.command_console.append_output(f"> {command}")
+        statements = self._command_statements(command)
+        if not statements:
             return
+        current_id = node_id
+        last_node_id: str | None = None
         try:
-            node = self.workspace.apply_transform(node_id, dialog.code)
+            for statement in statements:
+                if self._is_duplicate_statement(statement):
+                    node = self.workspace.duplicate(current_id, self._duplicate_alias(statement))
+                    action = "Duplicated branch"
+                else:
+                    node = self.workspace.apply_transform(current_id, statement)
+                    action = self._command_status(statement)
+                current_id = node.id
+                last_node_id = node.id
+                frame = self.workspace.materialize(node.id)
+                self.command_console.append_output(f"{action}: {node.alias} - {len(frame):,} rows x {len(frame.columns):,} cols")
         except Exception as exc:
-            QMessageBox.warning(self, "Transformation failed", str(exc))
+            self.command_console.append_output(f"Error: {exc}")
             return
         self.mark_dirty()
-        self.refresh(animate_node_id=node.id)
+        self.refresh(animate_node_id=last_node_id)
 
-    def duplicate_current(self) -> None:
-        node_id = self.workspace.selected_node_id
-        if not node_id:
-            return
-        parent = self.workspace.nodes[node_id]
-        dialog = DuplicateDialog(f"{parent.alias} copy", self)
-        if dialog.exec() != DuplicateDialog.DialogCode.Accepted:
-            return
-        node = self.workspace.duplicate(node_id, dialog.alias)
-        self.mark_dirty()
-        self.refresh(animate_node_id=node.id)
+    @staticmethod
+    def _command_statements(command: str) -> list[str]:
+        return [
+            line.strip()
+            for line in command.replace("|", "\n").splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+
+    @staticmethod
+    def _is_duplicate_statement(statement: str) -> bool:
+        return statement.lower().split(maxsplit=1)[0] == "duplicate"
+
+    def _duplicate_alias(self, statement: str) -> str | None:
+        match = re.fullmatch(r"duplicate(?:\s+(?:as\s+)?(.+))?", statement, flags=re.I)
+        if not match:
+            raise ValueError("duplicate syntax: duplicate [as New branch name]")
+        alias = (match.group(1) or "").strip()
+        return alias or None
+
+    @staticmethod
+    def _command_status(statement: str) -> str:
+        verb = statement.split(maxsplit=1)[0].lower()
+        return {
+            "where": "Filtered rows",
+            "keep": "Kept columns",
+            "drop": "Dropped columns",
+            "dedupe": "Removed duplicates",
+            "rename": "Renamed column",
+            "derive": "Derived column",
+            "update": "Updated column",
+            "sort": "Sorted rows",
+            "head": "Selected head rows",
+            "tail": "Selected tail rows",
+            "sample": "Sampled rows",
+            "fill": "Filled values",
+            "cast": "Cast column",
+        }.get(verb, "Transformed dataset")
 
     def open_merge_dialog(self, left_id: str, right_id: str) -> None:
         if self._merge_dialog_open or left_id == right_id:
@@ -300,9 +333,7 @@ class MainWindow(QMainWindow):
             return
         values = dialog.values()
         try:
-            local_code = values.pop("local_code")
-            prepared = LocalTransformEngine().apply(frame, local_code) if local_code.strip() else frame
-            result = run_statistical_test(prepared, **values)
+            result = run_statistical_test(frame, **values)
         except Exception as exc:
             QMessageBox.warning(self, "Statistical test failed", str(exc))
             return
@@ -320,7 +351,7 @@ class MainWindow(QMainWindow):
                 node_id=node_id,
                 title=result.test,
                 config=values,
-                local_code=local_code,
+                local_code="",
                 result=result.to_dict(),
             )
             self.mark_dirty()

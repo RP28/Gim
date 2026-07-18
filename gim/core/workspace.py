@@ -239,7 +239,7 @@ class Workspace:
 
     @staticmethod
     def _summarise_code(code: str) -> str:
-        first = next((line.strip() for line in code.splitlines() if line.strip() and not line.strip().startswith("#")), "Transform")
+        first = next((line.strip() for line in code.splitlines() if line.strip() and not line.strip().startswith("#")), "Command")
         return first if len(first) <= 42 else first[:39] + "…"
 
     def to_manifest(self) -> WorkspaceManifest:
