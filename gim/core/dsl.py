@@ -5,6 +5,7 @@ import math
 import operator
 import re
 from dataclasses import dataclass
+from importlib.resources import files
 from typing import Any
 
 import numpy as np
@@ -344,36 +345,4 @@ class LocalTransformEngine:
         raise DslError(f"Unknown command: {command}")
 
 
-CHEATSHEET = """LOCAL DATA LANGUAGE
-
-Column tokens
-  @price                 simple name
-  @{Order Date}          names containing spaces/symbols
-
-Rows
-  where @age >= 18 and @status == "active"
-  where contains(@city, "syd")
-  where @name_right not null
-  where @name_right is null
-  head 500
-  tail 100
-  sample 250
-  sort @{Order Date} desc
-
-Columns
-  keep @customer, @sales, @profit
-  drop @temporary, @{Unused Flag}
-  rename @rev as Revenue
-  derive margin = @revenue - @cost
-  derive margin_pct = round((@revenue - @cost) / @revenue * 100, 2)
-  cast @{Order Date} as datetime
-  fill @income = median
-  dedupe @customer, @{Order Date}
-
-Functions
-  abs(x), sqrt(x), log(x), log10(x), round(x, n)
-  lower(x), upper(x), contains(x, text, case=False)
-  isnull(x), notnull(x), year(x), month(x), day(x), clip(x, low, high)
-
-Combine steps with new lines or |. Lines beginning with # are comments.
-"""
+CHEATSHEET = files("gim").joinpath("CHEATSHEET.md").read_text(encoding="utf-8")

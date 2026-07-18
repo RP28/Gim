@@ -133,4 +133,4 @@ For headless CI, the test configuration uses `QT_QPA_PLATFORM=offscreen` and sub
 - Add a dataframe source adapter in `normalise_sources()`.
 - Add a statistical test in `run_statistical_test()` and expose its display name in `TEST_NAMES`.
 
-See [CHEATSHEET.md](CHEATSHEET.md) for the complete local language reference.
+See [gim/CHEATSHEET.md](gim/CHEATSHEET.md) for the complete local language reference.
