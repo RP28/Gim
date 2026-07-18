@@ -96,6 +96,15 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
         self.dataframe = dataframe
         self.column_mapping = column_mapping
 
+    @staticmethod
+    def _to_datetime(value: Any) -> Any:
+        return pd.to_datetime(value, errors="coerce")
+
+    @staticmethod
+    def _to_date(value: Any) -> Any:
+        converted = pd.to_datetime(value, errors="coerce")
+        return converted.dt.normalize() if isinstance(converted, pd.Series) else converted.normalize()
+
     def evaluate(self, expression: str) -> Any:
         try:
             tree = ast.parse(expression, mode="eval")
@@ -181,6 +190,8 @@ class SafeExpressionEvaluator(ast.NodeVisitor):
             "contains": lambda value, text, case=False: value.astype("string").str.contains(str(text), case=bool(case), na=False),
             "isnull": pd.isna,
             "notnull": pd.notna,
+            "datetime": self._to_datetime,
+            "date": self._to_date,
             "year": lambda value: pd.to_datetime(value, errors="coerce").dt.year,
             "month": lambda value: pd.to_datetime(value, errors="coerce").dt.month,
             "day": lambda value: pd.to_datetime(value, errors="coerce").dt.day,
@@ -277,6 +288,15 @@ class LocalTransformEngine:
             result[name] = self._evaluate(result, expression.strip())
             return result
 
+        if command == "update":
+            match = re.fullmatch(r"(@\{[^}]+\}|@[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)", rest)
+            if not match:
+                raise DslError("update syntax: update @column = expression")
+            column = self._column_list(dataframe, match.group(1))[0]
+            result = dataframe.copy()
+            result[column] = self._evaluate(result, match.group(2).strip())
+            return result
+
         if command == "sort":
             match = re.fullmatch(r"(@\{[^}]+\}|@[A-Za-z_][A-Za-z0-9_]*)(?:\s+(asc|desc))?", rest, flags=re.I)
             if not match:
@@ -322,14 +342,16 @@ class LocalTransformEngine:
             return result
 
         if command == "cast":
-            match = re.fullmatch(r"(@\{[^}]+\}|@[A-Za-z_][A-Za-z0-9_]*)\s+as\s+(string|int|float|bool|datetime|category)", rest, flags=re.I)
+            match = re.fullmatch(r"(@\{[^}]+\}|@[A-Za-z_][A-Za-z0-9_]*)\s+as\s+(string|int|float|bool|datetime|date|category)", rest, flags=re.I)
             if not match:
-                raise DslError("cast syntax: cast @column as string|int|float|bool|datetime|category")
+                raise DslError("cast syntax: cast @column as string|int|float|bool|datetime|date|category")
             column = self._column_list(dataframe, match.group(1))[0]
             dtype = match.group(2).lower()
             result = dataframe.copy()
             if dtype == "datetime":
                 result[column] = pd.to_datetime(result[column], errors="coerce")
+            elif dtype == "date":
+                result[column] = pd.to_datetime(result[column], errors="coerce").dt.normalize()
             elif dtype == "int":
                 result[column] = pd.to_numeric(result[column], errors="coerce").astype("Int64")
             elif dtype == "float":

@@ -65,6 +65,25 @@ def test_fill_rename_cast_and_sample(frame: pd.DataFrame) -> None:
     assert len(result) == len(frame)
 
 
+def test_update_existing_column_and_cast_to_date() -> None:
+    frame = pd.DataFrame({"PriceUpdatedDate": ["2026-03-01 00:05:26", "2026-03-14 12:00:49"]})
+
+    result = LocalTransformEngine().apply(frame, "update @PriceUpdatedDate = date(@PriceUpdatedDate)")
+
+    assert str(result["PriceUpdatedDate"].dtype).startswith("datetime64")
+    assert list(result["PriceUpdatedDate"].dt.strftime("%Y-%m-%d")) == ["2026-03-01", "2026-03-14"]
+
+
+def test_cast_column_to_date() -> None:
+    frame = pd.DataFrame({"PriceUpdatedDate": ["2026-03-01 00:05:26", None]})
+
+    result = LocalTransformEngine().apply(frame, "cast @PriceUpdatedDate as date")
+
+    assert str(result["PriceUpdatedDate"].dtype).startswith("datetime64")
+    assert result["PriceUpdatedDate"].dt.strftime("%Y-%m-%d").iloc[0] == "2026-03-01"
+    assert pd.isna(result["PriceUpdatedDate"].iloc[1])
+
+
 def test_unknown_column_is_clear_error(frame: pd.DataFrame) -> None:
     with pytest.raises(DslError, match="Unknown column"):
         LocalTransformEngine().apply(frame, "drop @missing")

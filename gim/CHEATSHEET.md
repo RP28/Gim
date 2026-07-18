@@ -38,7 +38,9 @@ drop @temporary, @{Unused Flag}
 rename @rev as Revenue
 derive margin = @revenue - @cost
 derive margin_pct = round((@revenue - @cost) / @revenue * 100, 2)
+update @PriceUpdatedDate = date(@PriceUpdatedDate)
 cast @{Order Date} as datetime
+cast @PriceUpdatedDate as date
 fill @income = median
 dedupe @customer, @{Order Date}
 ```
@@ -48,7 +50,8 @@ dedupe @customer, @{Order Date}
 ```text
 abs(x), sqrt(x), log(x), log10(x), round(x, n)
 lower(x), upper(x), contains(x, text, case=False)
-isnull(x), notnull(x), year(x), month(x), day(x), clip(x, low, high)
+isnull(x), notnull(x), datetime(x), date(x)
+year(x), month(x), day(x), clip(x, low, high)
 ```
 
 Combine steps using new lines or `|`. Lines beginning with `#` are ignored. Arbitrary imports, attribute access, and unrestricted Python calls are blocked so saved workspaces remain deterministic and replayable.
