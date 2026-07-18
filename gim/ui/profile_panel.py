@@ -5,6 +5,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
+    QDialog,
+    QDialogButtonBox,
     QFrame,
     QHeaderView,
     QHBoxLayout,
@@ -17,7 +19,71 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from gim.core.profile import ColumnProfile, build_column_profiles
+from gim.core.profile import ColumnDetail, ColumnProfile, build_column_detail, build_column_profiles
+
+
+def _configure_readonly_table(table: QTableWidget) -> None:
+    table.setAlternatingRowColors(True)
+    table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+    table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+    table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+    table.verticalHeader().setVisible(False)
+    table.setShowGrid(False)
+
+
+class ColumnDetailDialog(QDialog):
+    def __init__(self, detail: ColumnDetail, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"Column profile - {detail.name}")
+        self.resize(720, 560)
+        root = QVBoxLayout(self)
+
+        title = QLabel(detail.name)
+        title.setObjectName("Title")
+        subtitle = QLabel(f"{detail.kind.title()} column - {detail.dtype}")
+        subtitle.setObjectName("Muted")
+        root.addWidget(title)
+        root.addWidget(subtitle)
+
+        self.summary_table = QTableWidget(len(detail.summary), 2)
+        self.summary_table.setHorizontalHeaderLabels(["Statistic", "Value"])
+        _configure_readonly_table(self.summary_table)
+        self.summary_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.summary_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        for row, (statistic, value) in enumerate(detail.summary):
+            self.summary_table.setItem(row, 0, QTableWidgetItem(statistic))
+            self.summary_table.setItem(row, 1, QTableWidgetItem(value))
+        root.addWidget(self.summary_table, 2)
+
+        lower = QHBoxLayout()
+        self.top_table = QTableWidget(len(detail.top_values), 3)
+        self.top_table.setHorizontalHeaderLabels(["Top values", "Count", "Share"])
+        _configure_readonly_table(self.top_table)
+        self.top_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.top_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.top_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        for row, (value, count, share) in enumerate(detail.top_values):
+            self.top_table.setItem(row, 0, QTableWidgetItem(value))
+            self.top_table.setItem(row, 1, QTableWidgetItem(count))
+            self.top_table.setItem(row, 2, QTableWidgetItem(share))
+
+        self.sample_table = QTableWidget(len(detail.sample_values), 2)
+        self.sample_table.setHorizontalHeaderLabels(["Row", "Sample values"])
+        _configure_readonly_table(self.sample_table)
+        self.sample_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.sample_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        for row, (index, value) in enumerate(detail.sample_values):
+            self.sample_table.setItem(row, 0, QTableWidgetItem(index))
+            self.sample_table.setItem(row, 1, QTableWidgetItem(value))
+
+        lower.addWidget(self.top_table, 1)
+        lower.addWidget(self.sample_table, 1)
+        root.addLayout(lower, 3)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(self.reject)
+        buttons.clicked.connect(self.accept)
+        root.addWidget(buttons)
 
 
 class ProfilePanel(QFrame):
@@ -25,6 +91,7 @@ class ProfilePanel(QFrame):
         super().__init__(parent)
         self.setObjectName("Card")
         self.setMaximumHeight(270)
+        self._dataframe: pd.DataFrame | None = None
         self._profiles: list[ColumnProfile] = []
         self._visible_profiles: list[ColumnProfile] = []
         self._kind_filter = "all"
@@ -78,6 +145,7 @@ class ProfilePanel(QFrame):
         header_view.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         header_view.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         self.table.itemSelectionChanged.connect(self._show_selected_details)
+        self.table.itemDoubleClicked.connect(self._open_detail_dialog)
         root.addWidget(self.table, 1)
 
         self.details = QLabel("Select a history node to inspect dataframe summary statistics.")
@@ -88,11 +156,13 @@ class ProfilePanel(QFrame):
 
     def set_dataframe(self, alias: str, dataframe: pd.DataFrame) -> None:
         self.dataset_label.setText(f"{alias} - {len(dataframe):,} rows x {len(dataframe.columns):,} cols")
+        self._dataframe = dataframe
         self._profiles = build_column_profiles(dataframe)
         self._refresh_rows()
 
     def clear_profile(self) -> None:
         self.dataset_label.setText("No dataset selected")
+        self._dataframe = None
         self._profiles = []
         self._visible_profiles = []
         self.table.setRowCount(0)
@@ -143,3 +213,14 @@ class ProfilePanel(QFrame):
         if 0 <= row < len(self._visible_profiles):
             profile = self._visible_profiles[row]
             self.details.setText(f"{profile.name}: {profile.details}")
+
+    def _open_detail_dialog(self, item: QTableWidgetItem) -> None:
+        if self._dataframe is None:
+            return
+        row = item.row()
+        if not 0 <= row < len(self._visible_profiles):
+            return
+        profile = self._visible_profiles[row]
+        series = self._dataframe.iloc[:, profile.position]
+        dialog = ColumnDetailDialog(build_column_detail(profile, series), self)
+        dialog.exec()

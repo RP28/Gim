@@ -121,3 +121,24 @@ def test_plot_panel_bins_slider_and_spin_stay_synchronised(qapp) -> None:
     assert panel.bins_spin.value() == 37
     panel.bins_spin.setValue(42)
     assert panel.bins_slider.value() == 42
+
+
+def test_profile_panel_double_click_opens_column_detail(qapp, monkeypatch) -> None:
+    import gim.ui.profile_panel as profile_module
+
+    opened: list[str] = []
+
+    class FakeDialog:
+        def __init__(self, detail, parent=None) -> None:
+            opened.append(detail.name)
+
+        def exec(self) -> int:
+            return 0
+
+    monkeypatch.setattr(profile_module, "ColumnDetailDialog", FakeDialog)
+
+    panel = profile_module.ProfilePanel()
+    panel.set_dataframe("data", pd.DataFrame({"x": [1, 2], "city": ["Sydney", "Melbourne"]}))
+    panel._open_detail_dialog(panel.table.item(0, 0))
+
+    assert opened == ["x"]
