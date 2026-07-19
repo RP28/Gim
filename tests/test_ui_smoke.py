@@ -173,6 +173,25 @@ def test_command_console_runs_multiline_batch(qapp) -> None:
     window.close()
 
 
+def test_command_console_multiline_batch_has_single_result_prompt(qapp) -> None:
+    from gim.core.workspace import Workspace
+    from gim.ui.main_window import MainWindow
+
+    workspace = Workspace()
+    source = workspace.add_source(pd.DataFrame({"x": [1, 2], "y": [3, 4], "z": [5, 6]}), "data")
+    window = MainWindow(workspace)
+    window.select_node(source.id)
+    window.command_console.terminal.insertPlainText("drop @z\ndrop @y\n")
+
+    window.run_console_command("drop @z\ndrop @y")
+    transcript = window.command_console.terminal.toPlainText()
+
+    assert "Dropped columns: data - 2 rows x 2 cols\nDropped columns: data - 2 rows x 1 cols\n>" in transcript
+    assert "\n>\nDropped columns" not in transcript
+    window.mark_dirty(False)
+    window.close()
+
+
 def test_command_console_cheatsheet_button_is_available(qapp) -> None:
     from PySide6.QtWidgets import QPushButton
 

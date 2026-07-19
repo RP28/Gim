@@ -208,6 +208,7 @@ class MainWindow(QMainWindow):
             return
         current_id = node_id
         last_node_id: str | None = None
+        output_lines: list[str] = []
         try:
             for statement in statements:
                 if self._is_duplicate_statement(statement):
@@ -221,10 +222,13 @@ class MainWindow(QMainWindow):
                 current_id = node.id
                 last_node_id = node.id
                 frame = self.workspace.materialize(node.id)
-                self.command_console.append_output(f"{action}: {node.alias} - {len(frame):,} rows x {len(frame.columns):,} cols")
+                output_lines.append(f"{action}: {node.alias} - {len(frame):,} rows x {len(frame.columns):,} cols")
         except Exception as exc:
+            if output_lines:
+                self.command_console.append_output("\n".join(output_lines))
             self.command_console.append_output(f"Error: {exc}")
             return
+        self.command_console.append_output("\n".join(output_lines))
         self.mark_dirty()
         self.refresh(animate_node_id=last_node_id)
 
